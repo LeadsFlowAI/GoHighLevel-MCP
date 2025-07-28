@@ -4,23 +4,23 @@ FROM node:18-alpine
 # Set working directory
 WORKDIR /app
 
-# Copy package files
+# Copy package.json and package-lock.json
 COPY package*.json ./
 
-# Install ALL deps (dev + prod) pour que tsc soit dispo
+# Install dependencies (dev + prod)
 RUN npm install
 
-# Build the application
-RUN npm run build
-
-# Copy source code AFTER build
+# Copy all files
 COPY . .
 
-# Expose port 8000 (ou ce que t’utilises)
-EXPOSE 8443
+# Build TypeScript
+RUN npx tsc
 
-# Set environment to production
+# Expose default port
+EXPOSE 8000
+
+# Set environment
 ENV NODE_ENV=production
 
-# Start the HTTP server
+# Start the server
 CMD ["npm", "start"]
