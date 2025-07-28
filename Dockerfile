@@ -4,23 +4,23 @@ FROM node:18-alpine
 # Set working directory
 WORKDIR /app
 
-# Copy package.json and package-lock.json
+# Copy package files
 COPY package*.json ./
 
-# Install dependencies (dev + prod)
+# ✅ Install ALL dependencies including dev (TypeScript etc.)
 RUN npm install
 
 # Copy all files
 COPY . .
 
-# Build TypeScript
-RUN npx tsc
+# Compile TypeScript → dist/
+RUN npm run build
 
 # Expose default port
-EXPOSE 8000
+EXPOSE 8443
 
 # Set environment
 ENV NODE_ENV=production
 
-# Start the server
+# Launch server
 CMD ["npm", "start"]
