@@ -351,45 +351,66 @@ class GHLMCPHttpServer {
     });
 
     // RPC endpoint for direct tool calls (non-SSE)
-    this.app.post('/rpc', express.json(), async (req: express.Request, res: express.Response) => {
-      try {
-        const rpcRequest = req.body;
+    this.app.post('/rpc', express.json(), (req: express.Request, res: express.Response) => {
+      const rpcRequest = req.body;
     
-        if (rpcRequest.method !== 'tools/call' || !rpcRequest.params?.name) {
-          return res.status(400).json({ error: 'Invalid tool call request' });
-        }
+      if (rpcRequest?.method !== 'tools/call' || !rpcRequest?.params?.name) {
+        return res.status(400).json({ error: 'Invalid tool call request' });
+      }
     
-        const { name, arguments: args } = rpcRequest.params;
+      const { name, arguments: args } = rpcRequest.params;
     
-        console.log(`[GHL MCP HTTP - RPC] Executing tool: ${name}`);
+      console.log(`[MCP /rpc] Calling tool: ${name}`);
     
-        // 👇 Correction ici : cette méthode n'existe pas dans votre `this.server`
-        // Il faut appeler `this.server.handleRequest` directement
-        const result = await this.server.handleRequest({
-          jsonrpc: '2.0',
+      // Appelle manuellement le bon handler enregistré
+      const handler = this.server.requestHandlers.get('tools/call');
+    
+      if (!handler) {
+        return res.status(500).json({
+          jsonrpc: "2.0",
           id: rpcRequest.id,
-          method: 'tools/call',
+          error: {
+            code: -32601,
+            message: "tools/call handler not found"
+          }
+        });
+      }
+    
+      try {
+        handler({
+          jsonrpc: "2.0",
+          id: rpcRequest.id,
+          method: "tools/call",
           params: {
             name,
             arguments: args || {}
           }
+        }, {
+          respond: (result) => {
+            return res.json({
+              jsonrpc: "2.0",
+              id: rpcRequest.id,
+              result
+            });
+          },
+          error: (err) => {
+            return res.status(500).json({
+              jsonrpc: "2.0",
+              id: rpcRequest.id,
+              error: {
+                code: err?.code || -32603,
+                message: err?.message || "Internal error"
+              }
+            });
+          }
         });
-    
-        return res.json({
-          jsonrpc: '2.0',
-          id: rpcRequest.id,
-          result
-        });
-    
       } catch (error: any) {
-        console.error(`[GHL MCP HTTP - RPC] Error executing tool:`, error);
         return res.status(500).json({
-          jsonrpc: '2.0',
-          id: req.body.id || null,
+          jsonrpc: "2.0",
+          id: rpcRequest.id,
           error: {
             code: -32603,
-            message: 'Internal server error',
-            data: error.message
+            message: error.message || "Unexpected error"
           }
         });
       }
