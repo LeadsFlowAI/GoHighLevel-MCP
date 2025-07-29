@@ -352,3 +352,4 @@ if (req.method === 'POST' && req.url === '/rpc') {
 // Default 404
 log("Unknown endpoint", req.url);
 res.status(404).json({ error: 'Not found' });
+}
