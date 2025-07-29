@@ -349,60 +349,79 @@ class GHLMCPHttpServer {
         res.status(500).json({ error: 'Failed to list tools' });
       }
     });
+// SSE endpoint for ChatGPT MCP connection
+const handleSSE = async (req: express.Request, res: express.Response) => {
+  const sessionId = req.query.sessionId || 'unknown';
+  console.log(`[GHL MCP HTTP] New SSE connection from: ${req.ip}, sessionId: ${sessionId}, method: ${req.method}`);
 
-    // SSE endpoint for ChatGPT MCP connection
-    const handleSSE = async (req: express.Request, res: express.Response) => {
-      const sessionId = req.query.sessionId || 'unknown';
-      console.log(`[GHL MCP HTTP] New SSE connection from: ${req.ip}, sessionId: ${sessionId}, method: ${req.method}`);
-      
-      try {
-        // Create SSE transport (this will set the headers)
-        const transport = new SSEServerTransport('/sse', res);
-        
-        // Connect MCP server to transport
-        await this.server.connect(transport);
-        
-        console.log(`[GHL MCP HTTP] SSE connection established for session: ${sessionId}`);
-        
-        // Handle client disconnect
-        req.on('close', () => {
-          console.log(`[GHL MCP HTTP] SSE connection closed for session: ${sessionId}`);
-        });
-        
-      } catch (error) {
-        console.error(`[GHL MCP HTTP] SSE connection error for session ${sessionId}:`, error);
-        
-        // Only send error response if headers haven't been sent yet
-        if (!res.headersSent) {
-          res.status(500).json({ error: 'Failed to establish SSE connection' });
-        } else {
-          // If headers were already sent, close the connection
-          res.end();
-        }
+  try {
+    // Create SSE transport (this will set the headers)
+    const transport = new SSEServerTransport('/sse', res);
+
+    // Connect MCP server to transport
+    await this.server.connect(transport);
+
+    console.log(`[GHL MCP HTTP] SSE connection established for session: ${sessionId}`);
+
+    // Handle client disconnect
+    req.on('close', () => {
+      console.log(`[GHL MCP HTTP] SSE connection closed for session: ${sessionId}`);
+    });
+
+  } catch (error) {
+    console.error(`[GHL MCP HTTP] SSE connection error for session ${sessionId}:`, error);
+
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'Failed to establish SSE connection' });
+    } else {
+      res.end();
+    }
+  }
+};
+
+// ✅ MCP-compliant endpoints
+this.app.get('/sse', handleSSE);
+this.app.post('/sse', handleSSE);
+
+// ✅ Fallback endpoint for JSON-RPC without SSE (for curl or Python)
+this.app.post('/rpc', express.json(), async (req, res) => {
+  try {
+    console.log(`[MCP RPC] Received JSON-RPC request on /rpc: ${JSON.stringify(req.body)}`);
+    const message = req.body;
+
+    const response = await this.server.handleJsonRpcMessage(message); // 🧠 adapte si nécessaire
+    res.setHeader('Content-Type', 'application/json');
+    res.status(200).json(response);
+  } catch (error: any) {
+    console.error(`[MCP RPC] JSON parse or processing error: ${error.message}`);
+    res.status(400).json({
+      jsonrpc: '2.0',
+      id: null,
+      error: {
+        code: -32700,
+        message: 'Parse error'
       }
-    };
-
-    // Handle both GET and POST for SSE (MCP protocol requirements)
-    this.app.get('/sse', handleSSE);
-    this.app.post('/sse', handleSSE);
-
-    // Root endpoint with server info
-    this.app.get('/', (req, res) => {
-      res.json({
-        name: 'GoHighLevel MCP Server',
-        version: '1.0.0',
-        status: 'running',
-        endpoints: {
-          health: '/health',
-          capabilities: '/capabilities',
-          tools: '/tools',
-          sse: '/sse'
-        },
-        tools: this.getToolsCount(),
-        documentation: 'https://github.com/your-repo/ghl-mcp-server'
-      });
     });
   }
+});
+
+// Root endpoint with server info
+this.app.get('/', (req, res) => {
+  res.json({
+    name: 'GoHighLevel MCP Server',
+    version: '1.0.0',
+    status: 'running',
+    endpoints: {
+      health: '/health',
+      capabilities: '/capabilities',
+      tools: '/tools',
+      sse: '/sse',
+      rpc: '/rpc'
+    },
+    tools: this.getToolsCount(),
+    documentation: 'https://github.com/your-repo/ghl-mcp-server'
+  });
+});
 
   /**
    * Get tools count summary
