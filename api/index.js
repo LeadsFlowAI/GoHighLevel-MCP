@@ -231,125 +231,100 @@ module.exports = async (req, res) => {
   }
   
   // MCP SSE endpoint
-if (req.url === '/sse') {
-  log("MCP SSE endpoint requested");
-
-  // Set SSE headers
-  res.writeHead(200, {
-    'Content-Type': 'text/event-stream',
-    'Cache-Control': 'no-cache',
-    'Connection': 'keep-alive',
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type, Accept',
-    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS'
-  });
-
-  // Handle GET (SSE connection)
-  if (req.method === 'GET') {
-    log("SSE connection established");
-
-    const initNotification = createJsonRpcNotification("notification/initialized", {});
-    sendSSE(res, initNotification);
-
-    setTimeout(() => {
-      const toolsNotification = createJsonRpcNotification("notification/tools/list_changed", {});
-      sendSSE(res, toolsNotification);
-    }, 100);
-
-    const heartbeat = setInterval(() => {
-      res.write(': heartbeat\n\n');
-    }, 25000);
-
-    req.on('close', () => {
-      log("SSE connection closed");
-      clearInterval(heartbeat);
+  if (req.url === '/sse') {
+    log("MCP SSE endpoint requested");
+    
+    // Set SSE headers
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Headers': 'Content-Type, Accept',
+      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS'
     });
-
-    req.on('error', (error) => {
-      log("SSE connection error", error.message);
-      clearInterval(heartbeat);
-    });
-
-    setTimeout(() => {
-      log("SSE connection auto-closing before timeout");
-      clearInterval(heartbeat);
-      res.end();
-    }, 50000);
-
-    return;
-  }
-
-  // Handle POST (JSON-RPC over SSE)
-  if (req.method === 'POST') {
-    log("Processing JSON-RPC POST request");
-
-    let body = '';
-    req.on('data', chunk => {
-      body += chunk.toString();
-    });
-
-    req.on('end', () => {
-      try {
-        log("Received POST body", body);
-        const message = JSON.parse(body);
-        const response = processJsonRpcMessage(message);
-
-        log("Sending JSON-RPC response", response);
-        console.log("✅ MCP Server is about to send SSE response:", JSON.stringify(response));
-        sendSSE(res, response);
-
-        setTimeout(() => {
-          res.write(': done\n\n');
-          res.end();
-        }, 2000);
-
-      } catch (error) {
-        log("JSON parse error", error.message);
-        const errorResponse = createJsonRpcResponse(null, null, {
-          code: -32700,
-          message: "Parse error"
-        });
-        sendSSE(res, errorResponse);
+    
+    // Handle GET (SSE connection)
+    if (req.method === 'GET') {
+      log("SSE connection established");
+      
+      // Send immediate initialization notification
+      const initNotification = createJsonRpcNotification("notification/initialized", {});
+      sendSSE(res, initNotification);
+      
+      // Send tools available notification
+      setTimeout(() => {
+        const toolsNotification = createJsonRpcNotification("notification/tools/list_changed", {});
+        sendSSE(res, toolsNotification);
+      }, 100);
+      
+      // Keep-alive heartbeat every 25 seconds (well under Vercel's 60s limit)
+      const heartbeat = setInterval(() => {
+        res.write(': heartbeat\n\n');
+      }, 25000);
+      
+      // Cleanup on connection close
+      req.on('close', () => {
+        log("SSE connection closed");
+        clearInterval(heartbeat);
+      });
+      
+      req.on('error', (error) => {
+        log("SSE connection error", error.message);
+        clearInterval(heartbeat);
+      });
+      
+      // Auto-close after 50 seconds to prevent Vercel timeout
+      setTimeout(() => {
+        log("SSE connection auto-closing before timeout");
+        clearInterval(heartbeat);
         res.end();
-      }
-    });
-
-    return;
-  }
-}
-
-// ✅ JSON-RPC fallback (outside /sse block)
-if (req.method === 'POST' && req.url === '/rpc') {
-  log("Handling /rpc fallback endpoint");
-
-  let body = '';
-  req.on('data', chunk => {
-    body += chunk.toString();
-  });
-
-  req.on('end', () => {
-    try {
-      const message = JSON.parse(body);
-      const response = processJsonRpcMessage(message);
-      res.setHeader('Content-Type', 'application/json');
-      res.status(200).end(JSON.stringify(response));
-    } catch (err) {
-      log("JSON parse error on /rpc", err.message);
-      res.status(400).json({
-        jsonrpc: "2.0",
-        id: null,
-        error: {
-          code: -32700,
-          message: "Parse error"
+      }, 50000);
+      
+      return;
+    }
+    
+    // Handle POST (JSON-RPC messages)
+    if (req.method === 'POST') {
+      log("Processing JSON-RPC POST request");
+      
+      let body = '';
+      req.on('data', chunk => {
+        body += chunk.toString();
+      });
+      
+      req.on('end', () => {
+        try {
+          log("Received POST body", body);
+          const message = JSON.parse(body);
+          const response = processJsonRpcMessage(message);
+          
+          log("Sending JSON-RPC response", response);
+          
+          // Send as SSE for MCP protocol compliance
+          sendSSE(res, response);
+          
+          // Close connection after response
+          setTimeout(() => {
+            res.end();
+          }, 100);
+          
+        } catch (error) {
+          log("JSON parse error", error.message);
+          const errorResponse = createJsonRpcResponse(null, null, {
+            code: -32700,
+            message: "Parse error"
+          });
+          sendSSE(res, errorResponse);
+          res.end();
         }
       });
+      
+      return;
     }
-  });
-
-  return;
-}
-
-// Default 404
-log("Unknown endpoint", req.url);
-res.status(404).json({ error: 'Not found' });
-}
+  }
+  
+  // Default 404
+  log("Unknown endpoint", req.url);
+  res.status(404).json({ error: 'Not found' });
+}; 
