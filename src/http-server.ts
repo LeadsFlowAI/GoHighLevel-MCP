@@ -2,7 +2,7 @@
  * GoHighLevel MCP HTTP Server
  * HTTP version for ChatGPT web integration
  */
-
+import type { JSONRPCRequest } from '@modelcontextprotocol/types';
 import express from 'express';
 import cors from 'cors';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
@@ -352,10 +352,10 @@ class GHLMCPHttpServer {
 
     // ✅ Nouveau endpoint pour appels RPC directs sans SSE
     this.app.post('/rpc', express.json(), async (req, res) => {
-      const request = req.body;
+      const request: JSONRPCRequest = req.body;
     
       if (!request || request.jsonrpc !== '2.0' || !request.method || !request.id) {
-        return res.status(400).json({
+        res.status(400).json({
           jsonrpc: '2.0',
           id: null,
           error: {
@@ -363,27 +363,35 @@ class GHLMCPHttpServer {
             message: 'Invalid Request'
           }
         });
+        return;
       }
     
-      console.log(`[MCP /rpc] Received method: ${request.method}`);
+      console.log(`[RPC] Handling method: ${request.method}`);
     
-      try {
-        const result = await this.server.receive(request);
-        res.status(200).json(result);
-      } catch (error: any) {
-        console.error(`[MCP /rpc] Error handling request`, error);
-        res.status(500).json({
-          jsonrpc: '2.0',
-          id: request.id,
-          error: {
-            code: -32603,
-            message: 'Internal server error',
-            data: error.message
+      // Appel du MCP server comme dans l'exemple officiel
+      this.server
+        .handle(request, {
+          send: (response: any) => {
+            res.status(200).json(response);
+          },
+          end: () => {
+            // Rien à faire ici
+          },
+          error: (err: any) => {
+            console.error('[RPC] MCP server error', err);
+            res.status(500).json({
+              jsonrpc: '2.0',
+              id: request.id,
+              error: {
+                code: -32603,
+                message: 'Internal Server Error',
+                data: err.message || err
+              }
+            });
           }
         });
-      }
     });
-    
+
     // SSE endpoint for ChatGPT MCP connection
     const handleSSE = async (req: express.Request, res: express.Response) => {
       const sessionId = req.query.sessionId || 'unknown';
