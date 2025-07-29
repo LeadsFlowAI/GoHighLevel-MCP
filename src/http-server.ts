@@ -351,44 +351,39 @@ class GHLMCPHttpServer {
     });
 
     // ✅ Nouveau endpoint pour appels RPC directs sans SSE
-    this.app.post('/rpc', express.json(), (req: express.Request, res: express.Response) => {
+    this.app.post('/rpc', express.json(), async (req, res) => {
       const request = req.body;
-
-      if (request?.method !== 'tools/call' || !request?.params?.name) {
-       res.status(400).json({
-         jsonrpc: '2.0',
-         id: request?.id || null,
-         error: {
-           code: -32600,
-           message: 'Invalid JSON-RPC request',
-         },
-       });
-       return;
+    
+      if (!request || request.jsonrpc !== '2.0' || !request.method || !request.id) {
+        return res.status(400).json({
+          jsonrpc: '2.0',
+          id: null,
+          error: {
+            code: -32600,
+            message: 'Invalid Request'
+          }
+        });
       }
-
-      console.log(`[MCP /rpc] Calling tool: ${request.params.name}`);
-
-      this.server.handle(request, {
-        respond: (result) => {
-          res.json({
-            jsonrpc: '2.0',
-           id: request.id,
-            result,
-          });
-        },
-        error: (err) => {
-          res.status(500).json({
-            jsonrpc: '2.0',
-            id: request.id,
-            error: {
-              code: err?.code || -32603,
-              message: err?.message || 'Internal server error',
-            },
-          });
-        },
-      });
+    
+      console.log(`[MCP /rpc] Received method: ${request.method}`);
+    
+      try {
+        const result = await this.server.receive(request);
+        res.status(200).json(result);
+      } catch (error: any) {
+        console.error(`[MCP /rpc] Error handling request`, error);
+        res.status(500).json({
+          jsonrpc: '2.0',
+          id: request.id,
+          error: {
+            code: -32603,
+            message: 'Internal server error',
+            data: error.message
+          }
+        });
+      }
     });
-
+    
     // SSE endpoint for ChatGPT MCP connection
     const handleSSE = async (req: express.Request, res: express.Response) => {
       const sessionId = req.query.sessionId || 'unknown';
