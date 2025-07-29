@@ -328,25 +328,34 @@ module.exports = async (req, res) => {
 
   // JSON-RPC fallback for clients that can't handle SSE (e.g. curl, Python)
   if (req.method === 'POST' && req.url === '/rpc') {
-    log("JSON-RPC fallback endpoint hit");
+  log("Handling /rpc fallback endpoint");
 
-    let body = '';
-    req.on('data', chunk => (body += chunk.toString()));
-    req.on('end', () => {
-      try {
-        const message = JSON.parse(body);
-        const response = processJsonRpcMessage(message);
-        res.setHeader('Content-Type', 'application/json');
-        res.status(200).end(JSON.stringify(response));
-      } catch (err) {
-        log("JSON parse error on /rpc", err.message);
-        res.status(400).json({
-          jsonrpc: "2.0",
-          error: { code: -32700, message: "Parse error" },
-          id: null
-        });
-      }
-    });
+  let body = '';
+  req.on('data', chunk => {
+    body += chunk.toString();
+  });
+
+  req.on('end', () => {
+    try {
+      const message = JSON.parse(body);
+      const response = processJsonRpcMessage(message);
+      res.setHeader('Content-Type', 'application/json');
+      res.status(200).end(JSON.stringify(response));
+    } catch (err) {
+      log("JSON parse error on /rpc", err.message);
+      res.status(400).json({
+        jsonrpc: "2.0",
+        id: null,
+        error: {
+          code: -32700,
+          message: "Parse error"
+        }
+      });
+    }
+  });
+
+  return;
+}
 
     return;
   }
