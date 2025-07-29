@@ -300,14 +300,16 @@ module.exports = async (req, res) => {
           const response = processJsonRpcMessage(message);
           
           log("Sending JSON-RPC response", response);
-          
+
+          console.log("✅ MCP Server is about to send SSE response:", JSON.stringify(response));
           // Send as SSE for MCP protocol compliance
           sendSSE(res, response);
-          
-          // Close connection after response
+
+          // Simule un comportement SSE : laissons vivre la connexion 2 secondes
           setTimeout(() => {
+            res.write(': done\n\n');
             res.end();
-          }, 100);
+        }, 2000);
           
         } catch (error) {
           log("JSON parse error", error.message);
