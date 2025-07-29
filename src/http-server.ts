@@ -351,52 +351,45 @@ class GHLMCPHttpServer {
     });
 
     // RPC endpoint for direct tool calls (non-SSE)
-    this.app.post('/rpc', async (req, res) => {
-      const rpcRequest = req.body;
-      const requestId = rpcRequest.id || null;
-
-      console.log(`[GHL MCP HTTP - RPC] Received tool call for method: ${rpcRequest.method}`);
-
+    this.app.post('/rpc', express.json(), async (req: express.Request, res: express.Response) => {
       try {
-        // Basic validation
-        if (rpcRequest.jsonrpc !== '2.0' || rpcRequest.method !== 'tools/call' || !rpcRequest.params || !rpcRequest.params.name) {
-          return res.status(400).json({
-            jsonrpc: '2.0',
-            id: requestId,
-            error: { code: -32600, message: 'Invalid Request: Not a valid tools/call JSON-RPC request' }
-          });
+        const rpcRequest = req.body;
+    
+        if (rpcRequest.method !== 'tools/call' || !rpcRequest.params?.name) {
+          return res.status(400).json({ error: 'Invalid tool call request' });
         }
-
-        console.log(`[GHL MCP HTTP - RPC] Executing tool: ${rpcRequest.params.name}`);
-
-        // Get the registered handler for tool calls
-        const callToolHandler = this.server.getRequestHandler(CallToolRequestSchema);
-        if (!callToolHandler) {
-          throw new Error('CallToolRequestSchema handler is not registered on the MCP server.');
-        }
-
-        // Execute the handler with the validated request payload.
-        // The handler expects the full request object and returns the `result` part.
-        const result = await callToolHandler(rpcRequest);
-
-        console.log(`[GHL MCP HTTP - RPC] Tool ${rpcRequest.params.name} executed successfully`);
-
-        // Return the standard JSON-RPC success response
-        res.json({
+    
+        const { name, arguments: args } = rpcRequest.params;
+    
+        console.log(`[GHL MCP HTTP - RPC] Executing tool: ${name}`);
+    
+        // 👇 Correction ici : cette méthode n'existe pas dans votre `this.server`
+        // Il faut appeler `this.server.handleRequest` directement
+        const result = await this.server.handleRequest({
           jsonrpc: '2.0',
-          id: requestId,
-          result: result
+          id: rpcRequest.id,
+          method: 'tools/call',
+          params: {
+            name,
+            arguments: args || {}
+          }
         });
-
+    
+        return res.json({
+          jsonrpc: '2.0',
+          id: rpcRequest.id,
+          result
+        });
+    
       } catch (error: any) {
         console.error(`[GHL MCP HTTP - RPC] Error executing tool:`, error);
-        res.status(500).json({
+        return res.status(500).json({
           jsonrpc: '2.0',
-          id: requestId,
+          id: req.body.id || null,
           error: {
-            code: -32603, // Internal Error
-            message: 'Internal Server Error',
-            data: error.message || 'An unexpected error occurred.'
+            code: -32603,
+            message: 'Internal server error',
+            data: error.message
           }
         });
       }
