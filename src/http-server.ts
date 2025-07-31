@@ -25,6 +25,7 @@ import {
   ListToolsRequestSchema,
   McpError 
 } from '@modelcontextprotocol/sdk/types.js';
+import { requireApiKey } from './middleware/auth';
 
 import { GHLApiClient } from './clients/ghl-api-client';
 import { ContactTools } from './tools/contact-tools';
@@ -142,6 +143,9 @@ class GHLMCPHttpServer {
       console.log(`[HTTP] ${req.method} ${req.path} - ${new Date().toISOString()}`);
       next();
     });
+
+    // Apply API Key authentication for all routes
+    this.app.use(requireApiKey);
   }
 
   /**
@@ -316,7 +320,7 @@ class GHLMCPHttpServer {
   }
 
   /**
-   * Setup HTTP routes
+   * Sets up the routes for the server
    */
   private setupRoutes(): void {
     // Health check endpoint
@@ -328,6 +332,11 @@ class GHLMCPHttpServer {
         timestamp: new Date().toISOString(),
         tools: this.getToolsCount()
       });
+    });
+
+    // Auth test endpoint
+    this.app.get('/auth/test', (req: Request, res: Response) => {
+      res.json({ message: 'Authenticated successfully' });
     });
 
     // MCP capabilities endpoint
@@ -343,7 +352,7 @@ class GHLMCPHttpServer {
       });
     });
 
-    // Tools listing endpoint
+    // List tools endpoint
     this.app.get('/tools', async (req: Request, res: Response) => {
       try {
         const contactTools = this.contactTools.getToolDefinitions();
