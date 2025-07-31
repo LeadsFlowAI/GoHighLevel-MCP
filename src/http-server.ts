@@ -3,7 +3,19 @@
  * HTTP version for ChatGPT web integration
  */
 
-import express from 'express';
+import * as dotenv from 'dotenv';
+
+// Logic to load the correct .env file
+const envFile = process.env.NODE_ENV === 'production' 
+    ? '.env.production' 
+    : '.env.local'; // Use .env.local for 'development' or any other case
+
+dotenv.config({ path: envFile });
+
+console.log(`[ENV] Loading environment variables from: ${envFile}`);
+
+
+import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
@@ -13,7 +25,6 @@ import {
   ListToolsRequestSchema,
   McpError 
 } from '@modelcontextprotocol/sdk/types.js';
-import * as dotenv from 'dotenv';
 
 import { GHLApiClient } from './clients/ghl-api-client';
 import { ContactTools } from './tools/contact-tools';
@@ -32,11 +43,11 @@ import { CustomFieldV2Tools } from './tools/custom-field-v2-tools';
 import { WorkflowTools } from './tools/workflow-tools';
 import { SurveyTools } from './tools/survey-tools';
 import { StoreTools } from './tools/store-tools';
-import { ProductsTools } from './tools/products-tools.js';
+import { ProductsTools } from './tools/products-tools';
 import { GHLConfig } from './types/ghl-types';
 
-// Load environment variables
-dotenv.config();
+// Load environment variables - This is now handled at the top of the file
+// dotenv.config();
 
 /**
  * HTTP MCP Server class for web deployment
@@ -127,7 +138,7 @@ class GHLMCPHttpServer {
     this.app.use(express.json());
 
     // Request logging
-    this.app.use((req, res, next) => {
+    this.app.use((req: Request, res: Response, next: NextFunction) => {
       console.log(`[HTTP] ${req.method} ${req.path} - ${new Date().toISOString()}`);
       next();
     });
@@ -227,49 +238,8 @@ class GHLMCPHttpServer {
     this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const { name, arguments: args } = request.params;
       
-      console.log(`[GHL MCP HTTP] Executing tool: ${name}`);
-
       try {
-        let result: any;
-
-        // Route to appropriate tool handler
-        if (this.isContactTool(name)) {
-          result = await this.contactTools.executeTool(name, args || {});
-        } else if (this.isConversationTool(name)) {
-          result = await this.conversationTools.executeTool(name, args || {});
-        } else if (this.isBlogTool(name)) {
-          result = await this.blogTools.executeTool(name, args || {});
-        } else if (this.isOpportunityTool(name)) {
-          result = await this.opportunityTools.executeTool(name, args || {});
-        } else if (this.isCalendarTool(name)) {
-          result = await this.calendarTools.executeTool(name, args || {});
-        } else if (this.isEmailTool(name)) {
-          result = await this.emailTools.executeTool(name, args || {});
-        } else if (this.isLocationTool(name)) {
-          result = await this.locationTools.executeTool(name, args || {});
-        } else if (this.isEmailISVTool(name)) {
-          result = await this.emailISVTools.executeTool(name, args || {});
-        } else if (this.isSocialMediaTool(name)) {
-          result = await this.socialMediaTools.executeTool(name, args || {});
-        } else if (this.isMediaTool(name)) {
-          result = await this.mediaTools.executeTool(name, args || {});
-        } else if (this.isObjectTool(name)) {
-          result = await this.objectTools.executeTool(name, args || {});
-        } else if (this.isAssociationTool(name)) {
-          result = await this.associationTools.executeAssociationTool(name, args || {});
-        } else if (this.isCustomFieldV2Tool(name)) {
-          result = await this.customFieldV2Tools.executeCustomFieldV2Tool(name, args || {});
-        } else if (this.isWorkflowTool(name)) {
-          result = await this.workflowTools.executeWorkflowTool(name, args || {});
-        } else if (this.isSurveyTool(name)) {
-          result = await this.surveyTools.executeSurveyTool(name, args || {});
-        } else if (this.isStoreTool(name)) {
-          result = await this.storeTools.executeStoreTool(name, args || {});
-        } else if (this.isProductsTool(name)) {
-          result = await this.productsTools.executeProductsTool(name, args || {});
-        } else {
-          throw new Error(`Unknown tool: ${name}`);
-        }
+        const result = await this.executeTool(name, args || {});
         
         console.log(`[GHL MCP HTTP] Tool ${name} executed successfully`);
         
@@ -293,11 +263,64 @@ class GHLMCPHttpServer {
   }
 
   /**
+   * Executes a tool by name with the given arguments.
+   * This is a centralized dispatcher for all tool categories.
+   * @param name The name of the tool to execute.
+   * @param args The arguments for the tool.
+   * @returns The result of the tool execution.
+   */
+  private async executeTool(name: string, args: any): Promise<any> {
+    console.log(`[GHL MCP HTTP] Executing tool: ${name}`);
+    let result: any;
+
+    // Route to appropriate tool handler
+    if (this.isContactTool(name)) {
+      result = await this.contactTools.executeTool(name, args || {});
+    } else if (this.isConversationTool(name)) {
+      result = await this.conversationTools.executeTool(name, args || {});
+    } else if (this.isBlogTool(name)) {
+      result = await this.blogTools.executeTool(name, args || {});
+    } else if (this.isOpportunityTool(name)) {
+      result = await this.opportunityTools.executeTool(name, args || {});
+    } else if (this.isCalendarTool(name)) {
+      result = await this.calendarTools.executeTool(name, args || {});
+    } else if (this.isEmailTool(name)) {
+      result = await this.emailTools.executeTool(name, args || {});
+    } else if (this.isLocationTool(name)) {
+      result = await this.locationTools.executeTool(name, args || {});
+    } else if (this.isEmailISVTool(name)) {
+      result = await this.emailISVTools.executeTool(name, args || {});
+    } else if (this.isSocialMediaTool(name)) {
+      result = await this.socialMediaTools.executeTool(name, args || {});
+    } else if (this.isMediaTool(name)) {
+      result = await this.mediaTools.executeTool(name, args || {});
+    } else if (this.isObjectTool(name)) {
+      result = await this.objectTools.executeTool(name, args || {});
+    } else if (this.isAssociationTool(name)) {
+      result = await this.associationTools.executeAssociationTool(name, args || {});
+    } else if (this.isCustomFieldV2Tool(name)) {
+      result = await this.customFieldV2Tools.executeCustomFieldV2Tool(name, args || {});
+    } else if (this.isWorkflowTool(name)) {
+      result = await this.workflowTools.executeWorkflowTool(name, args || {});
+    } else if (this.isSurveyTool(name)) {
+      result = await this.surveyTools.executeSurveyTool(name, args || {});
+    } else if (this.isStoreTool(name)) {
+      result = await this.storeTools.executeStoreTool(name, args || {});
+    } else if (this.isProductsTool(name)) {
+      result = await this.productsTools.executeProductsTool(name, args || {});
+    } else {
+      throw new Error(`Unknown tool: ${name}`);
+    }
+
+    return result;
+  }
+
+  /**
    * Setup HTTP routes
    */
   private setupRoutes(): void {
     // Health check endpoint
-    this.app.get('/health', (req, res) => {
+    this.app.get('/health', (req: Request, res: Response) => {
       res.json({ 
         status: 'healthy',
         server: 'ghl-mcp-server',
@@ -308,7 +331,7 @@ class GHLMCPHttpServer {
     });
 
     // MCP capabilities endpoint
-    this.app.get('/capabilities', (req, res) => {
+    this.app.get('/capabilities', (req: Request, res: Response) => {
       res.json({
         capabilities: {
           tools: {},
@@ -321,7 +344,7 @@ class GHLMCPHttpServer {
     });
 
     // Tools listing endpoint
-    this.app.get('/tools', async (req, res) => {
+    this.app.get('/tools', async (req: Request, res: Response) => {
       try {
         const contactTools = this.contactTools.getToolDefinitions();
         const conversationTools = this.conversationTools.getToolDefinitions();
@@ -347,6 +370,23 @@ class GHLMCPHttpServer {
         });
       } catch (error) {
         res.status(500).json({ error: 'Failed to list tools' });
+      }
+    });
+
+    // Jarvis REST endpoint
+    this.app.post('/jarvis', async (req: Request, res: Response) => {
+      const { tool, params } = req.body;
+
+      if (!tool) {
+        return res.status(400).json({ success: false, error: 'Missing "tool" field in request body' });
+      }
+
+      try {
+        const result = await this.executeTool(tool, params || {});
+        res.json({ success: true, result });
+      } catch (error: any) {
+        console.error(`[JARVIS] Error executing tool ${tool}:`, error);
+        res.status(500).json({ success: false, error: error.message || 'An internal server error occurred' });
       }
     });
 
@@ -387,7 +427,7 @@ class GHLMCPHttpServer {
     this.app.post('/sse', handleSSE);
 
     // Root endpoint with server info
-    this.app.get('/', (req, res) => {
+    this.app.get('/', (req: Request, res: Response) => {
       res.json({
         name: 'GoHighLevel MCP Server',
         version: '1.0.0',
@@ -396,7 +436,8 @@ class GHLMCPHttpServer {
           health: '/health',
           capabilities: '/capabilities',
           tools: '/tools',
-          sse: '/sse'
+          sse: '/sse',
+          jarvis: '/jarvis'
         },
         tools: this.getToolsCount(),
         documentation: 'https://github.com/your-repo/ghl-mcp-server'
