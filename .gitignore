@@ -1,54 +1,57 @@
-# Dependencies
-node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# Environment variables
+# 📁 Environnements secrets
 .env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+.env.*
+!.env.example
 
-# MCP Configuration with credentials
-cursor-mcp-config.json
+# 📁 Fichiers Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
 
-# Build output
+# 📁 Logs
+*.log
+*.bak
+*.tmp
+*.swp
+
+# 📁 Cache & build
+.cache/
+.mypy_cache/
+.pytest_cache/
 dist/
 build/
+*.egg-info/
 
-# IDE files
+# 📁 IDEs
 .vscode/
 .idea/
-*.swp
-*.swo
+*.sublime-project
+*.sublime-workspace
 
-# OS files
+# 📁 Docker & Coolify
+docker-compose.override.yml
+coolify.json
+
+# 📁 Jupyter/Notebook
+.ipynb_checkpoints/
+
+# 📁 Exclusion locale
 .DS_Store
 Thumbs.db
 
-# Logs
-logs/
-*.log
+# 📁 Virtualenv
+venv/
+env/
+.venv/
 
-# Coverage reports
-coverage/
-.nyc_output/
+# 📁 Coverage
+htmlcov/
+coverage.xml
+.coverage
+.pytest_cache/
 
-# Runtime data
-pids/
-*.pid
-*.seed
-*.pid.lock
-
-# Optional npm cache directory
-.npm
-
-# Optional ESLint cache
-.eslintcache
-
-# Temporary folders
-tmp/
-temp/ 
-.vercel
+# 📁 Tests
+tests/__pycache__/
+test-results/
