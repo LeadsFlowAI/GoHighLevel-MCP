@@ -81,6 +81,7 @@ class GHLMCPHttpServer {
   private storeTools: StoreTools;
   private productsTools: ProductsTools;
   private port: number;
+  private cachedTools: any[] | null = null; // Variable pour le cache
 
   constructor() {
     this.port = parseInt(process.env.PORT || process.env.MCP_SERVER_PORT || '8000');
@@ -194,7 +195,15 @@ class GHLMCPHttpServer {
   private setupMCPHandlers(): void {
     // Handle list tools requests
     this.server.setRequestHandler(ListToolsRequestSchema, async () => {
-      console.log('[GHL MCP HTTP] Listing available tools...');
+      console.log('[GHL MCP HTTP] Handling list tools request...');
+      
+      // Si le cache est disponible, le retourner directement
+      if (this.cachedTools) {
+        console.log('[GHL MCP HTTP] Returning cached tools.');
+        return { tools: this.cachedTools };
+      }
+
+      console.log('[GHL MCP HTTP] Cache empty. Building tools list...');
       
       try {
         const contactToolDefinitions = this.contactTools.getToolDefinitions();
@@ -234,8 +243,11 @@ class GHLMCPHttpServer {
           ...storeToolDefinitions,
           ...productsToolDefinitions
         ];
+
+        // Mettre en cache la liste pour les futures requêtes
+        this.cachedTools = allTools;
         
-        console.log(`[GHL MCP HTTP] Registered ${allTools.length} tools total`);
+        console.log(`[GHL MCP HTTP] Registered and cached ${allTools.length} tools total`);
         
         return {
           tools: allTools
