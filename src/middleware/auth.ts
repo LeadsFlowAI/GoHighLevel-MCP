@@ -2,6 +2,11 @@
 import { Request, Response, NextFunction } from "express";
 
 export function requireApiKey(req: Request, res: Response, next: NextFunction) {
+    // ---- START DEBUGGING ----
+    // Log all incoming headers to see what the client is sending
+    console.log("DEBUG: Incoming Headers:", JSON.stringify(req.headers, null, 2));
+    // ---- END DEBUGGING ----
+
     // Essayez d'abord de récupérer la clé depuis l'en-tête 'x-api-key'
     let apiKey = req.headers["x-api-key"] as string | undefined;
 
