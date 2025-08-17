@@ -147,8 +147,8 @@ class GHLMCPHttpServer {
       credentials: true
     }));
 
-    // Parse JSON requests
-    this.app.use(express.json());
+    // Parse JSON requests - NOTE: Moved to specific routes that need it
+    // this.app.use(express.json());
 
     // Request logging
     this.app.use((req: Request, res: Response, next: NextFunction) => {
@@ -405,8 +405,8 @@ class GHLMCPHttpServer {
       }
     });
 
-    // Jarvis REST endpoint
-    this.app.post('/jarvis', async (req: Request, res: Response) => {
+    // Jarvis REST endpoint - with JSON parsing middleware
+    this.app.post('/jarvis', express.json(), async (req: Request, res: Response) => {
       const { tool, params } = req.body;
 
       if (!tool) {
