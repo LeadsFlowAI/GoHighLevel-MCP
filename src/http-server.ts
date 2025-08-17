@@ -791,12 +791,16 @@ class GHLMCPHttpServer {
           
           // Connexion manuelle au serveur MCP car WebSocketServerTransport n'est pas disponible
           this.server.connect({
-            send: (message) => ws.send(message),
-            onMessage: (handler) => {
+            send: async (message: any) => {
+              if (ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify(message));
+              }
+            },
+            onMessage: async (handler: (message: string) => void) => {
               ws.on('message', (data) => handler(data.toString()));
             },
             close: () => ws.close(),
-            onClose: (handler) => {
+            onClose: async (handler: () => void) => {
               ws.on('close', handler);
             },
           }).catch(err => {
