@@ -17,8 +17,12 @@ console.log(`[ENV] Loading environment variables from: ${envFile}`);
 
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
+import http from 'http';
+import { WebSocketServer, WebSocket } from 'ws';
+import { parse } from 'url';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
+// WebSocketServerTransport n'est pas exporté, nous allons utiliser une approche manuelle
 import { 
   CallToolRequestSchema,
   ErrorCode,
@@ -55,6 +59,8 @@ import { GHLConfig } from './types/ghl-types';
  */
 class GHLMCPHttpServer {
   private app: express.Application;
+  private httpServer: http.Server;
+  private wss: WebSocketServer;
   private server: Server;
   private ghlClient: GHLApiClient;
   private contactTools: ContactTools;
@@ -81,7 +87,12 @@ class GHLMCPHttpServer {
     
     // Initialize Express app
     this.app = express();
+    this.httpServer = http.createServer(this.app);
     this.setupExpress();
+
+    // Initialize WebSocket server
+    this.wss = new WebSocketServer({ noServer: true });
+    this.setupWebSocketServer();
 
     // Initialize MCP server with capabilities
     this.server = new Server(
@@ -733,27 +744,69 @@ class GHLMCPHttpServer {
    * Start the HTTP server
    */
   async start(): Promise<void> {
-    console.log('🚀 Starting GoHighLevel MCP HTTP Server...');
-    console.log('=========================================');
+    console.log('🚀 Starting GoHighLevel MCP Server (HTTP + WebSocket)...');
+    console.log('======================================================');
     
     try {
       // Test GHL API connection
       await this.testGHLConnection();
       
-      // Start HTTP server
-      this.app.listen(this.port, '0.0.0.0', () => {
-        console.log('✅ GoHighLevel MCP HTTP Server started successfully!');
-        console.log(`🌐 Server running on: http://0.0.0.0:${this.port}`);
+      // Start HTTP server and attach WebSocket upgrade handler
+      this.httpServer.listen(this.port, '0.0.0.0', () => {
+        console.log('✅ GoHighLevel MCP Server started successfully!');
+        console.log(`🌐 HTTP Server running on: http://0.0.0.0:${this.port}`);
         console.log(`🔗 SSE Endpoint: http://0.0.0.0:${this.port}/sse`);
+        console.log(`🔗 WebSocket Endpoint: ws://0.0.0.0:${this.port}`);
         console.log(`📋 Tools Available: ${this.getToolsCount().total}`);
-        console.log('🎯 Ready for ChatGPT integration!');
-        console.log('=========================================');
+        console.log('🎯 Ready for client integration!');
+        console.log('======================================================');
       });
       
     } catch (error) {
-      console.error('❌ Failed to start GHL MCP HTTP Server:', error);
+      console.error('❌ Failed to start GHL MCP Server:', error);
       process.exit(1);
     }
+  }
+
+  private setupWebSocketServer(): void {
+    this.httpServer.on('upgrade', (request, socket, head) => {
+      const { pathname, query } = parse(request.url || '', true);
+
+      // Simple routing for WebSocket paths
+      if (pathname === '/') {
+        // Authenticate the WebSocket connection
+        const apiKey = query.apiKey as string | undefined;
+        const validKey = process.env.MCP_API_KEY;
+
+        if (process.env.NODE_ENV !== 'development' && (!apiKey || apiKey !== validKey)) {
+          console.warn(`[WebSocket] Unauthorized connection attempt. API key is missing or invalid.`);
+          socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+          socket.destroy();
+          return;
+        }
+
+        this.wss.handleUpgrade(request, socket, head, (ws) => {
+          console.log('[WebSocket] Client connected with valid API key.');
+          this.wss.emit('connection', ws, request);
+          
+          // Connexion manuelle au serveur MCP car WebSocketServerTransport n'est pas disponible
+          this.server.connect({
+            send: (message) => ws.send(message),
+            onMessage: (handler) => {
+              ws.on('message', (data) => handler(data.toString()));
+            },
+            close: () => ws.close(),
+            onClose: (handler) => {
+              ws.on('close', handler);
+            },
+          }).catch(err => {
+            console.error('[WebSocket] Failed to connect MCP server to transport:', err);
+          });
+        });
+      } else {
+        socket.destroy();
+      }
+    });
   }
 }
 
