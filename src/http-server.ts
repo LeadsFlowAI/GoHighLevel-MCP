@@ -431,13 +431,34 @@ class GHLMCPHttpServer {
         // Create SSE transport (this will set the headers)
         const transport = new SSEServerTransport('/sse', res);
         
-        // Connect MCP server to transport
+        // Connect MCP server to transport. This populates transport.onmessage.
         await this.server.connect(transport);
         
         console.log(`[GHL MCP HTTP] SSE connection established for session: ${sessionId}`);
+
+        // Manually handle incoming POST data since we're not using a global JSON parser.
+        // This logic mirrors the WebSocket implementation.
+        if (req.method === 'POST') {
+          let body = '';
+          req.on('data', (chunk) => {
+            body += chunk.toString();
+          });
+          req.on('end', () => {
+            if (body && (transport as any).onmessage) {
+              try {
+                (transport as any).onmessage(JSON.parse(body));
+              } catch (e) {
+                console.error(`[GHL MCP HTTP] Error parsing incoming SSE message:`, e);
+              }
+            }
+          });
+        }
         
         // Handle client disconnect
         req.on('close', () => {
+          if ((transport as any).onclose) {
+            (transport as any).onclose();
+          }
           console.log(`[GHL MCP HTTP] SSE connection closed for session: ${sessionId}`);
         });
         
