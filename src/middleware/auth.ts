@@ -18,6 +18,11 @@ export function requireApiKey(req: Request, res: Response, next: NextFunction) {
         }
     }
 
+    // Si toujours pas trouvée, vérifier les paramètres de la requête (query parameters)
+    if (!apiKey) {
+        apiKey = req.query.apiKey as string | undefined;
+    }
+
     const validKey = process.env.MCP_API_KEY;
 
     if (process.env.NODE_ENV === "development") {
