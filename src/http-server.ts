@@ -789,22 +789,32 @@ class GHLMCPHttpServer {
           console.log('[WebSocket] Client connected with valid API key.');
           this.wss.emit('connection', ws, request);
           
-          // Connexion manuelle au serveur MCP car WebSocketServerTransport n'est pas disponible
-          this.server.connect({
+          const transport = {
             send: async (message: any) => {
               if (ws.readyState === WebSocket.OPEN) {
                 ws.send(JSON.stringify(message));
               }
             },
-            onMessage: async (handler: (message: string) => void) => {
-              ws.on('message', (data) => handler(data.toString()));
-            },
-            close: () => ws.close(),
-            onClose: async (handler: () => void) => {
-              ws.on('close', handler);
-            },
-          }).catch(err => {
+            close: async () => ws.close(),
+            onmessage: (message: any) => {}, // This will be replaced by the server.
+            onclose: () => {}, // This will be replaced by the server.
+            start: async () => {}, // Required by the Transport interface
+          };
+
+          this.server.connect(transport).catch(err => {
             console.error('[WebSocket] Failed to connect MCP server to transport:', err);
+          });
+
+          ws.on('message', (data) => {
+            try {
+              transport.onmessage(JSON.parse(data.toString()));
+            } catch (e) {
+              console.error('[WebSocket] Malformed JSON message received:', data.toString(), e);
+            }
+          });
+
+          ws.on('close', () => {
+            transport.onclose();
           });
         });
       } else {
