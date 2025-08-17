@@ -55,3 +55,9 @@ coverage.xml
 # 📁 Tests
 tests/__pycache__/
 test-results/
+
+# Custom
+.DS_Store
+.env.local
+.env.production
+remote-proxy.js
