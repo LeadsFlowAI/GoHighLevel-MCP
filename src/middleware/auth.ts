@@ -2,7 +2,17 @@
 import { Request, Response, NextFunction } from "express";
 
 export function requireApiKey(req: Request, res: Response, next: NextFunction) {
-    const apiKey = req.headers["x-api-key"];
+    // Essayez d'abord de récupérer la clé depuis l'en-tête 'x-api-key'
+    let apiKey = req.headers["x-api-key"] as string | undefined;
+
+    // Si elle n'est pas trouvée, vérifiez l'en-tête 'Authorization' (ex: Bearer <token>)
+    if (!apiKey) {
+        const authHeader = req.headers["authorization"];
+        if (authHeader && authHeader.startsWith("Bearer ")) {
+            apiKey = authHeader.substring(7); // Extrait le token après "Bearer "
+        }
+    }
+
     const validKey = process.env.MCP_API_KEY;
 
     if (process.env.NODE_ENV === "development") {
