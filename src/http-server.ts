@@ -190,75 +190,81 @@ class GHLMCPHttpServer {
   }
 
   /**
+   * Retrieves and caches the full list of tool definitions.
+   * This is the single source of truth for all tools.
+   * @returns A promise that resolves to the array of tool definitions.
+   */
+  private async getAllTools(): Promise<any[]> {
+    // Si le cache est disponible, le retourner directement
+    if (this.cachedTools) {
+      return this.cachedTools;
+    }
+
+    console.log('[GHL MCP HTTP] Cache empty. Building tools list for the first time...');
+
+    try {
+      const contactToolDefinitions = this.contactTools.getToolDefinitions();
+      const conversationToolDefinitions = this.conversationTools.getToolDefinitions();
+      const blogToolDefinitions = this.blogTools.getToolDefinitions();
+      const opportunityToolDefinitions = this.opportunityTools.getToolDefinitions();
+      const calendarToolDefinitions = this.calendarTools.getToolDefinitions();
+      const emailToolDefinitions = this.emailTools.getToolDefinitions();
+      const locationToolDefinitions = this.locationTools.getToolDefinitions();
+      const emailISVToolDefinitions = this.emailISVTools.getToolDefinitions();
+      const socialMediaToolDefinitions = this.socialMediaTools.getTools();
+      const mediaToolDefinitions = this.mediaTools.getToolDefinitions();
+      const objectToolDefinitions = this.objectTools.getToolDefinitions();
+      const associationToolDefinitions = this.associationTools.getTools();
+      const customFieldV2ToolDefinitions = this.customFieldV2Tools.getTools();
+      const workflowToolDefinitions = this.workflowTools.getTools();
+      const surveyToolDefinitions = this.surveyTools.getTools();
+      const storeToolDefinitions = this.storeTools.getTools();
+      const productsToolDefinitions = this.productsTools.getTools();
+      
+      const allTools = [
+        ...contactToolDefinitions,
+        ...conversationToolDefinitions,
+        ...blogToolDefinitions,
+        ...opportunityToolDefinitions,
+        ...calendarToolDefinitions,
+        ...emailToolDefinitions,
+        ...locationToolDefinitions,
+        ...emailISVToolDefinitions,
+        ...socialMediaToolDefinitions,
+        ...mediaToolDefinitions,
+        ...objectToolDefinitions,
+        ...associationToolDefinitions,
+        ...customFieldV2ToolDefinitions,
+        ...workflowToolDefinitions,
+        ...surveyToolDefinitions,
+        ...storeToolDefinitions,
+        ...productsToolDefinitions
+      ];
+
+      // Mettre en cache la liste pour les futures requêtes
+      this.cachedTools = allTools;
+      
+      console.log(`[GHL MCP HTTP] Registered and cached ${allTools.length} tools total`);
+      
+      return allTools;
+    } catch (error) {
+      console.error('[GHL MCP HTTP] Error building tools list:', error);
+      // Retourner un tableau vide en cas d'erreur pour éviter de planter
+      return [];
+    }
+  }
+
+  /**
    * Setup MCP request handlers
    */
   private setupMCPHandlers(): void {
     // Handle list tools requests
     this.server.setRequestHandler(ListToolsRequestSchema, async () => {
       console.log('[GHL MCP HTTP] Handling list tools request...');
-      
-      // Si le cache est disponible, le retourner directement
-      if (this.cachedTools) {
-        console.log('[GHL MCP HTTP] Returning cached tools.');
-        return { tools: this.cachedTools };
-      }
-
-      console.log('[GHL MCP HTTP] Cache empty. Building tools list...');
-      
-      try {
-        const contactToolDefinitions = this.contactTools.getToolDefinitions();
-        const conversationToolDefinitions = this.conversationTools.getToolDefinitions();
-        const blogToolDefinitions = this.blogTools.getToolDefinitions();
-        const opportunityToolDefinitions = this.opportunityTools.getToolDefinitions();
-        const calendarToolDefinitions = this.calendarTools.getToolDefinitions();
-        const emailToolDefinitions = this.emailTools.getToolDefinitions();
-        const locationToolDefinitions = this.locationTools.getToolDefinitions();
-        const emailISVToolDefinitions = this.emailISVTools.getToolDefinitions();
-        const socialMediaToolDefinitions = this.socialMediaTools.getTools();
-        const mediaToolDefinitions = this.mediaTools.getToolDefinitions();
-        const objectToolDefinitions = this.objectTools.getToolDefinitions();
-        const associationToolDefinitions = this.associationTools.getTools();
-        const customFieldV2ToolDefinitions = this.customFieldV2Tools.getTools();
-        const workflowToolDefinitions = this.workflowTools.getTools();
-        const surveyToolDefinitions = this.surveyTools.getTools();
-        const storeToolDefinitions = this.storeTools.getTools();
-        const productsToolDefinitions = this.productsTools.getTools();
-        
-        const allTools = [
-          ...contactToolDefinitions,
-          ...conversationToolDefinitions,
-          ...blogToolDefinitions,
-          ...opportunityToolDefinitions,
-          ...calendarToolDefinitions,
-          ...emailToolDefinitions,
-          ...locationToolDefinitions,
-          ...emailISVToolDefinitions,
-          ...socialMediaToolDefinitions,
-          ...mediaToolDefinitions,
-          ...objectToolDefinitions,
-          ...associationToolDefinitions,
-          ...customFieldV2ToolDefinitions,
-          ...workflowToolDefinitions,
-          ...surveyToolDefinitions,
-          ...storeToolDefinitions,
-          ...productsToolDefinitions
-        ];
-
-        // Mettre en cache la liste pour les futures requêtes
-        this.cachedTools = allTools;
-        
-        console.log(`[GHL MCP HTTP] Registered and cached ${allTools.length} tools total`);
-        
-        return {
-          tools: allTools
-        };
-      } catch (error) {
-        console.error('[GHL MCP HTTP] Error listing tools:', error);
-        throw new McpError(
-          ErrorCode.InternalError,
-          `Failed to list tools: ${error}`
-        );
-      }
+      const allTools = await this.getAllTools();
+      return {
+        tools: allTools
+      };
     });
 
     // Handle tool execution requests
@@ -347,13 +353,14 @@ class GHLMCPHttpServer {
    */
   private setupRoutes(): void {
     // Health check endpoint
-    this.app.get('/health', (req: Request, res: Response) => {
+    this.app.get('/health', async (req: Request, res: Response) => {
+      const tools = await this.getAllTools();
       res.json({ 
         status: 'healthy',
         server: 'ghl-mcp-server',
         version: '1.0.0',
         timestamp: new Date().toISOString(),
-        tools: this.getToolsCount()
+        tools: tools.length
       });
     });
 
@@ -378,27 +385,10 @@ class GHLMCPHttpServer {
     // List tools endpoint
     this.app.get('/tools', async (req: Request, res: Response) => {
       try {
-        const contactTools = this.contactTools.getToolDefinitions();
-        const conversationTools = this.conversationTools.getToolDefinitions();
-        const blogTools = this.blogTools.getToolDefinitions();
-        const opportunityTools = this.opportunityTools.getToolDefinitions();
-        const calendarTools = this.calendarTools.getToolDefinitions();
-        const emailTools = this.emailTools.getToolDefinitions();
-        const locationTools = this.locationTools.getToolDefinitions();
-        const emailISVTools = this.emailISVTools.getToolDefinitions();
-        const socialMediaTools = this.socialMediaTools.getTools();
-        const mediaTools = this.mediaTools.getToolDefinitions();
-        const objectTools = this.objectTools.getToolDefinitions();
-        const associationTools = this.associationTools.getTools();
-        const customFieldV2Tools = this.customFieldV2Tools.getTools();
-        const workflowTools = this.workflowTools.getTools();
-        const surveyTools = this.surveyTools.getTools();
-        const storeTools = this.storeTools.getTools();
-        const productsTools = this.productsTools.getTools();
-        
+        const allTools = await this.getAllTools();
         res.json({
-          tools: [...contactTools, ...conversationTools, ...blogTools, ...opportunityTools, ...calendarTools, ...emailTools, ...locationTools, ...emailISVTools, ...socialMediaTools, ...mediaTools, ...objectTools, ...associationTools, ...customFieldV2Tools, ...workflowTools, ...surveyTools, ...storeTools, ...productsTools],
-          count: contactTools.length + conversationTools.length + blogTools.length + opportunityTools.length + calendarTools.length + emailTools.length + locationTools.length + emailISVTools.length + socialMediaTools.length + mediaTools.length + objectTools.length + associationTools.length + customFieldV2Tools.length + workflowTools.length + surveyTools.length + storeTools.length + productsTools.length
+          tools: allTools,
+          count: allTools.length
         });
       } catch (error) {
         res.status(500).json({ error: 'Failed to list tools' });
@@ -501,43 +491,9 @@ class GHLMCPHttpServer {
   /**
    * Get tools count summary
    */
-  private getToolsCount() {
-    return {
-      contact: this.contactTools.getToolDefinitions().length,
-      conversation: this.conversationTools.getToolDefinitions().length,
-      blog: this.blogTools.getToolDefinitions().length,
-      opportunity: this.opportunityTools.getToolDefinitions().length,
-      calendar: this.calendarTools.getToolDefinitions().length,
-      email: this.emailTools.getToolDefinitions().length,
-      location: this.locationTools.getToolDefinitions().length,
-      emailISV: this.emailISVTools.getToolDefinitions().length,
-      socialMedia: this.socialMediaTools.getTools().length,
-      media: this.mediaTools.getToolDefinitions().length,
-      objects: this.objectTools.getToolDefinitions().length,
-      associations: this.associationTools.getTools().length,
-      customFieldsV2: this.customFieldV2Tools.getTools().length,
-      workflows: this.workflowTools.getTools().length,
-      surveys: this.surveyTools.getTools().length,
-      store: this.storeTools.getTools().length,
-      products: this.productsTools.getTools().length,
-      total: this.contactTools.getToolDefinitions().length + 
-             this.conversationTools.getToolDefinitions().length + 
-             this.blogTools.getToolDefinitions().length +
-             this.opportunityTools.getToolDefinitions().length +
-             this.calendarTools.getToolDefinitions().length +
-             this.emailTools.getToolDefinitions().length +
-             this.locationTools.getToolDefinitions().length +
-             this.emailISVTools.getToolDefinitions().length +
-             this.socialMediaTools.getTools().length +
-             this.mediaTools.getToolDefinitions().length +
-             this.objectTools.getToolDefinitions().length +
-             this.associationTools.getTools().length +
-             this.customFieldV2Tools.getTools().length +
-             this.workflowTools.getTools().length +
-             this.surveyTools.getTools().length +
-             this.storeTools.getTools().length +
-             this.productsTools.getTools().length
-    };
+  private async getToolsCount() {
+    const allTools = await this.getAllTools();
+    return allTools.length;
   }
 
   /**
@@ -785,12 +741,15 @@ class GHLMCPHttpServer {
       await this.testGHLConnection();
       
       // Start HTTP server and attach WebSocket upgrade handler
-      this.httpServer.listen(this.port, '0.0.0.0', () => {
+      this.httpServer.listen(this.port, '0.0.0.0', async () => {
+        // Pre-warm the tools cache on startup
+        await this.getAllTools();
+
         console.log('✅ GoHighLevel MCP Server started successfully!');
         console.log(`🌐 HTTP Server running on: http://0.0.0.0:${this.port}`);
         console.log(`🔗 SSE Endpoint: http://0.0.0.0:${this.port}/sse`);
         console.log(`🔗 WebSocket Endpoint: ws://0.0.0.0:${this.port}`);
-        console.log(`📋 Tools Available: ${this.getToolsCount().total}`);
+        console.log(`📋 Tools Available: ${this.cachedTools?.length || 0}`);
         console.log('🎯 Ready for client integration!');
         console.log('======================================================');
       });
