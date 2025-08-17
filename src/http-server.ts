@@ -779,6 +779,9 @@ class GHLMCPHttpServer {
         const validKey = process.env.MCP_API_KEY;
 
         if (process.env.NODE_ENV !== 'development' && (!apiKey || apiKey !== validKey)) {
+          console.warn(`[WebSocket] Auth Failure:`);
+          console.warn(`  -> Key Received: '${apiKey}'`);
+          console.warn(`  -> Key Expected: '${validKey ? validKey.substring(0, 4) + '...' : 'NOT SET'}'`);
           console.warn(`[WebSocket] Unauthorized connection attempt. API key is missing or invalid.`);
           socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
           socket.destroy();
