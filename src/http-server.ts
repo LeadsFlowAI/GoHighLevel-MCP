@@ -770,6 +770,7 @@ class GHLMCPHttpServer {
 
   private setupWebSocketServer(): void {
     this.httpServer.on('upgrade', (request, socket, head) => {
+      console.log(`[WebSocket] Received upgrade request for path: ${request.url}`);
       const { pathname, query } = parse(request.url || '', true);
 
       // Simple routing for WebSocket paths
